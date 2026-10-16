@@ -22,7 +22,7 @@ import {
   getStorage,
 } from 'firebase/storage';
 import { db, storage, isFirebaseConfigured, app, cleanStorageBucket, fallbackStorageBucket } from '../firebase/config';
-import { compressImageForUpload } from '../utils/imageCompressor';
+import { compressImageForUpload, blobToDataUrl } from '../utils/imageCompressor';
 import { useAuth } from './AuthContext';
 import type {
   Post,
@@ -459,209 +459,128 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'Caption cannot exceed 280 characters.' };
     }
 
-    if (!storage || !db) {
-      return { success: false, error: 'Firebase Storage or Firestore is not available.' };
+    if (!db) {
+      return { success: false, error: 'Firebase Firestore database is not available.' };
     }
 
     // Phase 1: High-Speed Client-side Image Optimization
     if (onProgress) {
-      onProgress(10, 'compressing', {
-        progress: 10,
+      onProgress(15, 'compressing', {
+        progress: 15,
         stage: 'compressing',
       });
     }
 
-    let uploadFile = file;
+    let compressionResult;
     try {
-      const compressionResult = await compressImageForUpload(file);
-      uploadFile = compressionResult.file;
+      compressionResult = await compressImageForUpload(file, {
+        maxWidth: 1280,
+        maxHeight: 1280,
+        quality: 0.80,
+        targetMaxKB: 300,
+      });
     } catch (compressErr) {
-      console.warn('Image optimization fallback to original file:', compressErr);
+      console.warn('Image optimization fallback:', compressErr);
     }
 
-    // Ensure the post-compression file meets Firebase Storage rules (<= 5MB)
-    if (uploadFile.size > 5 * 1024 * 1024) {
-      return {
-        success: false,
-        error: 'Optimized image still exceeds 5 MB. Please select a smaller photo or crop it.',
-      };
+    // Extract Base64 Data URL for storing directly in Firebase DB
+    let dataUrl = compressionResult?.dataUrl;
+    if (!dataUrl) {
+      try {
+        dataUrl = await blobToDataUrl(compressionResult?.file || file);
+      } catch (e) {
+        return {
+          success: false,
+          error: 'Could not process photo for Firebase DB storage. Please try another image.',
+        };
+      }
     }
 
-    // Normalize MIME type so storage rules never reject image/jpg or mobile variants
-    let normalizedContentType = uploadFile.type || 'image/jpeg';
-    if (normalizedContentType === 'image/jpg' || normalizedContentType === 'image/pjpeg') {
-      normalizedContentType = 'image/jpeg';
+    // Ensure image fits comfortably within Firestore's 1 MiB limit (< 800 KB base64)
+    if (dataUrl.length > 850000) {
+      try {
+        const secondary = await compressImageForUpload(file, {
+          maxWidth: 960,
+          maxHeight: 960,
+          quality: 0.65,
+          targetMaxKB: 200,
+        });
+        if (secondary?.dataUrl) {
+          dataUrl = secondary.dataUrl;
+        }
+      } catch (err) {
+        console.warn('Secondary compression pass notice:', err);
+      }
     }
 
+    const approxBytes = Math.round(dataUrl.length * 0.75);
     const postId = `post_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    const fileExt = uploadFile.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const sanitizedFilename = `photo_${Date.now()}.${fileExt}`;
-    const imagePath = `post-images/${user.uid}/${postId}/${sanitizedFilename}`;
-    const storageRef = ref(storage, imagePath);
+    const imagePath = `firebasedb:posts/${postId}/photo`;
+
+    // Phase 2: Storing photo into Firebase DB
+    if (onProgress) {
+      onProgress(50, 'uploading', {
+        progress: 50,
+        stage: 'uploading',
+        bytesTransferred: Math.round(approxBytes * 0.4),
+        totalBytes: approxBytes,
+      });
+    }
+
+    // Slight simulation for smooth visual feedback on instantaneous DB writes
+    await new Promise((r) => setTimeout(r, 120));
 
     if (onProgress) {
-      onProgress(15, 'uploading', {
-        progress: 15,
+      onProgress(85, 'uploading', {
+        progress: 85,
         stage: 'uploading',
-        bytesTransferred: 0,
-        totalBytes: uploadFile.size,
+        bytesTransferred: approxBytes,
+        totalBytes: approxBytes,
       });
     }
 
-    return new Promise((resolve) => {
-      let isSettled = false;
-      let lastBytesTransferred = 0;
+    // Phase 3: Register post document in Firebase DB
+    if (onProgress) {
+      onProgress(92, 'saving', {
+        progress: 92,
+        stage: 'saving',
+      });
+    }
 
-      const uploadTask = uploadBytesResumable(storageRef, uploadFile, {
-        contentType: normalizedContentType,
-        customMetadata: {
-          authorUid: user.uid,
-          postId,
-        },
+    try {
+      const postDocRef = doc(db, 'posts', postId);
+      await setDoc(postDocRef, {
+        postId,
+        authorUid: user.uid,
+        authorDisplayName: user.displayName || 'Campus Student',
+        authorPhotoURL: user.photoURL || null,
+        imagePath,
+        imageUrl: dataUrl,
+        caption: caption.trim(),
+        category,
+        status: 'pending', // Pending moderation
+        consentConfirmed: true,
+        reactionCounts: { laugh: 0, skull: 0, clown: 0, heart: 0 },
+        reportCount: 0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
 
-      // 16-second early diagnostic:
-      // If 0 bytes are transferred after 16 seconds, CORS is almost certainly blocking Google Cloud Storage
-      const stuckCheckTimer = setTimeout(() => {
-        if (!isSettled && lastBytesTransferred === 0) {
-          isSettled = true;
-          try {
-            uploadTask.cancel();
-          } catch (e) {
-            // Task already canceled
-          }
-          resolve({
-            success: false,
-            error:
-              'Upload remained at 0% and timed out. This occurs when Google Cloud Storage CORS is not configured for your Vercel domain. Please run the 1-step Cloud Shell command in the Setup Guide (Section 5).',
-          });
-        }
-      }, 16000);
+      if (onProgress) {
+        onProgress(100, 'done', {
+          progress: 100,
+          stage: 'done',
+        });
+      }
 
-      // 30-second overall fail-safe timer
-      const uploadTimeoutTimer = setTimeout(() => {
-        if (!isSettled) {
-          isSettled = true;
-          try {
-            uploadTask.cancel();
-          } catch (e) {
-            // Task might already be dead
-          }
-          resolve({
-            success: false,
-            error:
-              'Upload took longer than 30 seconds. Please check your network connection and retry.',
-          });
-        }
-      }, 30000);
-
-      uploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          if (isSettled) return;
-          const total = snapshot.totalBytes;
-          const transferred = snapshot.bytesTransferred;
-          lastBytesTransferred = transferred;
-
-          const rawPct = total > 0 ? (transferred / total) * 100 : 0;
-          // Scale upload progress between 20% and 90%
-          const pct = isNaN(rawPct)
-            ? 20
-            : Math.min(90, Math.max(20, Math.round(20 + rawPct * 0.7)));
-
-          if (onProgress) {
-            onProgress(pct, 'uploading', {
-              progress: pct,
-              stage: 'uploading',
-              bytesTransferred: transferred,
-              totalBytes: total,
-            });
-          }
-        },
-        async (uploadError: any) => {
-          if (isSettled) return;
-          isSettled = true;
-          clearTimeout(stuckCheckTimer);
-          clearTimeout(uploadTimeoutTimer);
-          console.error('Storage upload error:', uploadError);
-
-          let errorMsg = `Upload failed: ${uploadError.message}`;
-          if (uploadError.code === 'storage/unauthorized') {
-            errorMsg =
-              'Upload blocked by Firebase Storage Security Rules. Ensure you are signed in with a verified @cvv.ac.in account.';
-          } else if (uploadError.code === 'storage/canceled') {
-            errorMsg = 'Upload was canceled or timed out.';
-          } else if (uploadError.code === 'storage/retry-limit-exceeded') {
-            errorMsg =
-              'Storage connection retry limit exceeded. Please configure CORS on your Firebase Storage bucket for your Vercel deployment.';
-          } else if (uploadError.code === 'storage/bucket-not-found') {
-            errorMsg = `Storage bucket "${cleanStorageBucket}" was not found. Verify VITE_FIREBASE_STORAGE_BUCKET in your Vercel settings.`;
-          }
-
-          resolve({
-            success: false,
-            error: errorMsg,
-          });
-        },
-        async () => {
-          if (isSettled) return;
-          clearTimeout(stuckCheckTimer);
-          clearTimeout(uploadTimeoutTimer);
-
-          if (onProgress) {
-            onProgress(92, 'saving', {
-              progress: 92,
-              stage: 'saving',
-            });
-          }
-
-          try {
-            const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-
-            // Phase 3: Create post in Firestore with 'pending' status
-            const postDocRef = doc(db!, 'posts', postId);
-            await setDoc(postDocRef, {
-              postId,
-              authorUid: user.uid,
-              authorDisplayName: user.displayName || 'Campus Student',
-              authorPhotoURL: user.photoURL || null,
-              imagePath,
-              imageUrl: downloadUrl,
-              caption: caption.trim(),
-              category,
-              status: 'pending', // Pending moderation
-              consentConfirmed: true,
-              reactionCounts: { laugh: 0, skull: 0, clown: 0, heart: 0 },
-              reportCount: 0,
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            });
-
-            if (onProgress) {
-              onProgress(100, 'done', {
-                progress: 100,
-                stage: 'done',
-              });
-            }
-            isSettled = true;
-            resolve({ success: true });
-          } catch (docError: any) {
-            isSettled = true;
-            console.error('Firestore post creation error:', docError);
-            // Cleanup orphaned file
-            try {
-              await deleteObject(storageRef);
-            } catch (cleanupErr) {
-              console.warn('Orphan cleanup warning:', cleanupErr);
-            }
-            resolve({
-              success: false,
-              error: `Database write failed: ${docError.message}. Check Firestore Security Rules.`,
-            });
-          }
-        }
-      );
-    });
+      return { success: true };
+    } catch (docError: any) {
+      console.error('Firebase DB post creation error:', docError);
+      return {
+        success: false,
+        error: `Database write failed: ${docError.message || 'Check Firestore Security Rules.'}`,
+      };
+    }
   };
 
   // Moderator approval
@@ -762,8 +681,8 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Author can soft-delete by setting status to removed, or delete if pending
       if (postData.status === 'pending' || isAdmin) {
         await deleteDoc(postRef);
-        // Also clean up storage image
-        if (postData.imagePath && storage) {
+        // Also clean up storage image if it was uploaded to legacy storage
+        if (postData.imagePath && !postData.imagePath.startsWith('firebasedb:') && storage) {
           try {
             await deleteObject(ref(storage, postData.imagePath));
           } catch (e) {

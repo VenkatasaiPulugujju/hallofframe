@@ -13,6 +13,7 @@
 
 export interface CompressionResult {
   file: File;
+  dataUrl: string; // Base64 data URL for direct Firebase DB storage
   originalSize: number;
   compressedSize: number;
   compressionRatio: number; // e.g. 0.15 (85% reduction)
@@ -21,6 +22,21 @@ export interface CompressionResult {
   originalWidth: number;
   originalHeight: number;
   durationMs: number;
+}
+
+export function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Failed to convert image blob to Data URL'));
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
 // In-memory cache for processed files to avoid re-compressing on re-render / retry
@@ -57,16 +73,18 @@ export async function compressImageForUpload(
   }
 
   const {
-    maxWidth = 1600,
-    maxHeight = 1600,
-    quality = 0.82,
-    targetMaxKB = 500,
+    maxWidth = 1280,
+    maxHeight = 1280,
+    quality = 0.80,
+    targetMaxKB = 350,
   } = options;
 
   // 1. Preserve animated GIFs (canvas flattening corrupts GIF animations)
   if (file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')) {
+    const dataUrl = await blobToDataUrl(file);
     const result: CompressionResult = {
       file,
+      dataUrl,
       originalSize: file.size,
       compressedSize: file.size,
       compressionRatio: 1,
@@ -80,13 +98,15 @@ export async function compressImageForUpload(
     return result;
   }
 
-  // 2. If already small (< 220KB) and standard web format, skip re-encoding
+  // 2. If already small (< 180KB) and standard web format, skip re-encoding
   if (
-    file.size <= 220 * 1024 &&
+    file.size <= 180 * 1024 &&
     (file.type === 'image/jpeg' || file.type === 'image/webp' || file.type === 'image/png')
   ) {
+    const dataUrl = await blobToDataUrl(file);
     const result: CompressionResult = {
       file,
+      dataUrl,
       originalSize: file.size,
       compressedSize: file.size,
       compressionRatio: 1,
@@ -202,8 +222,10 @@ export async function compressImageForUpload(
 
     // If compression failed or is somehow larger than original, stick with original
     if (!blob || (blob.size >= file.size && targetWidth === sourceWidth)) {
+      const dataUrl = await blobToDataUrl(blob || file);
       const result: CompressionResult = {
         file,
+        dataUrl,
         originalSize: file.size,
         compressedSize: file.size,
         compressionRatio: 1,
@@ -217,7 +239,8 @@ export async function compressImageForUpload(
       return result;
     }
 
-    // 8. Construct optimized File
+    // 8. Construct optimized File & Data URL
+    const dataUrl = await blobToDataUrl(blob);
     const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
     const ext = outputMime === 'image/png' ? '.png' : '.jpg';
     const optimizedFileName = `${baseName || 'campus_photo'}_opt${ext}`;
@@ -229,6 +252,7 @@ export async function compressImageForUpload(
 
     const result: CompressionResult = {
       file: optimizedFile,
+      dataUrl,
       originalSize: file.size,
       compressedSize: optimizedFile.size,
       compressionRatio: Number((optimizedFile.size / file.size).toFixed(2)),
@@ -243,8 +267,15 @@ export async function compressImageForUpload(
     return result;
   } catch (err) {
     console.warn('Image optimization fallback to original file:', err);
+    let dataUrl = '';
+    try {
+      dataUrl = await blobToDataUrl(file);
+    } catch (e) {
+      // Ignored
+    }
     const result: CompressionResult = {
       file,
+      dataUrl,
       originalSize: file.size,
       compressedSize: file.size,
       compressionRatio: 1,

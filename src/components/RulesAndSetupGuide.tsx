@@ -160,32 +160,28 @@ async function grantAdmin(uid) {
           <div className="bg-white p-4 rounded-xl border-2 border-[#111111] shadow-brutal-xs space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="w-5 h-5 bg-[#FFD719] border border-black rounded-full flex items-center justify-center font-black text-[11px]">
-                  5
+                <span className="w-5 h-5 bg-[#39D62D] border border-black rounded-full flex items-center justify-center font-black text-[11px] text-white">
+                  ✓
                 </span>
                 <h3 className="font-display font-black text-sm uppercase text-[#111111]">
-                  Firebase Storage CORS (For Vercel Deployment)
+                  Direct Firebase DB Storage (Active)
                 </h3>
               </div>
-              <button
-                onClick={() =>
-                  copyToClipboard(
-                    `echo '[{"origin":["*"],"method":["GET","POST","PUT","DELETE","HEAD","OPTIONS"],"maxAgeSeconds":3600,"responseHeader":["Content-Type","Authorization","Content-Length","User-Agent","x-goog-resumable","x-goog-meta-authoruid","x-goog-meta-postid"]}]' > cors.json && (gcloud storage buckets update gs://collage-b3e32.firebasestorage.app --cors-file=cors.json || gcloud storage buckets update gs://collage-b3e32.appspot.com --cors-file=cors.json)`,
-                    'cors'
-                  )
-                }
-                className="px-2 py-1 bg-[#FFF9F0] border border-black rounded text-[10px] font-bold flex items-center gap-1"
-              >
-                {copiedSection === 'cors' ? <Check className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3" />}
-                <span>{copiedSection === 'cors' ? 'Copied' : 'Copy 1-Step CORS Command'}</span>
-              </button>
+              <span className="px-2 py-0.5 bg-[#39D62D]/20 border border-green-600 rounded text-[10px] font-bold text-green-900">
+                No Cloud Storage Setup Needed
+              </span>
             </div>
             <p className="text-xs text-gray-700">
-              If photo uploads freeze at 0% when deployed on Vercel, Google Cloud Storage is blocking cross-origin requests. Run this single command in Google Cloud Shell (creates <code className="font-mono bg-gray-100 px-1 rounded">cors.json</code> and applies it automatically):
+              Campus Wall of Fame photos are optimized on the client and stored directly in your <strong>Firebase Database (Firestore)</strong> as high-speed data records. This eliminates all Google Cloud Storage bucket errors, CORS configuration, and 0% upload freezes on Vercel.
             </p>
-            <pre className="p-3 bg-[#111111] text-[#39D62D] rounded-lg font-mono text-[10px] overflow-x-auto leading-relaxed">
-{`echo '[{"origin":["*"],"method":["GET","POST","PUT","DELETE","HEAD","OPTIONS"],"maxAgeSeconds":3600,"responseHeader":["Content-Type","Authorization","Content-Length","User-Agent","x-goog-resumable","x-goog-meta-authoruid","x-goog-meta-postid"]}]' > cors.json && (gcloud storage buckets update gs://collage-b3e32.firebasestorage.app --cors-file=cors.json || gcloud storage buckets update gs://collage-b3e32.appspot.com --cors-file=cors.json)`}
-            </pre>
+            <div className="p-2.5 bg-[#FFF9F0] border border-[#111111] rounded-lg text-xs font-medium text-gray-800 space-y-1">
+              <div className="font-bold text-[#111111]">Why this works better:</div>
+              <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-gray-600">
+                <li>Instant 1–2 second photo uploads from iOS and Android.</li>
+                <li>Zero Google Cloud Storage bucket or Blaze plan prerequisites.</li>
+                <li>Operates entirely through your existing Firebase Firestore database connection.</li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>

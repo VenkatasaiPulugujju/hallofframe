@@ -287,7 +287,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   Campus Photo (Camera / Gallery) *
                 </label>
                 <span className="text-[11px] font-semibold text-gray-500">
-                  Auto-optimized for 2s upload
+                  Auto-optimized for Firebase DB (1-2s)
                 </span>
               </div>
 
@@ -314,7 +314,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   {isOptimizing ? (
                     <div className="p-2.5 bg-[#FFD719]/40 border-2 border-[#111111] rounded-xl flex items-center gap-2 text-xs font-bold text-[#111111] shadow-brutal-xs animate-pulse">
                       <Zap className="w-4 h-4 text-[#FF4388] animate-bounce shrink-0" />
-                      <span>Optimizing high-res photo for instant upload...</span>
+                      <span>Optimizing high-res photo for instant Firebase DB storage...</span>
                     </div>
                   ) : optimizedInfo ? (
                     <div className="p-2.5 bg-white border-2 border-[#111111] rounded-xl flex flex-wrap items-center justify-between gap-2 shadow-brutal-xs text-xs font-bold">
@@ -337,7 +337,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         </div>
                       </div>
                       <span className="text-[11px] text-green-700 font-bold bg-green-50 px-2 py-0.5 rounded-md border border-green-300">
-                        Ready for instant upload
+                        Ready for Firebase DB
                       </span>
                     </div>
                   ) : null}
@@ -359,7 +359,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                     Click or Drag to Upload Campus Photo
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    Supports high-res iPhone photos (HEIC/JPEG) • Auto-compressed to ~300KB
+                    Stored directly in Firebase Database • Instant 1-2s upload • No Cloud Storage setup needed
                   </p>
                 </div>
               )}
@@ -468,7 +468,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 <div className="flex items-center justify-between text-xs font-bold text-[#111111]">
                   <span className="flex items-center gap-1.5">
                     {uploadStage === 'compressing' && <span>⚡ Optimizing image resolution...</span>}
-                    {uploadStage === 'uploading' && <span>☁️ Transferring to Firebase Storage...</span>}
+                    {uploadStage === 'uploading' && <span>💾 Storing photo directly into Firebase DB...</span>}
                     {uploadStage === 'saving' && <span>📝 Publishing post to Wall of Fame...</span>}
                     {uploadStage === 'done' && <span>🎉 Post submitted!</span>}
                   </span>
