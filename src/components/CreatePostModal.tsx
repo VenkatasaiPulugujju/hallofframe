@@ -243,14 +243,13 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               🎉
             </div>
             <h3 className="font-display font-black text-2xl text-[#111111]">
-              SUBMITTED FOR MODERATION!
+              POST PUBLISHED!
             </h3>
             <p className="text-sm font-medium text-gray-700 max-w-md mx-auto">
-              Your legendary moment has been dispatched to campus moderators. Once approved, it will
-              grace the public Wall of Fame! 💀
+              Your legendary moment is now live on the public Wall of Fame for everyone to enjoy. 💀
             </p>
-            <div className="p-3 bg-[#FFD719] border-2 border-[#111111] rounded-xl text-xs font-bold inline-block shadow-brutal-xs">
-              Status: <span className="uppercase text-[#FF4388]">Pending Approval</span>
+            <div className="p-3 bg-[#39D62D] border-2 border-[#111111] rounded-xl text-xs font-bold inline-block shadow-brutal-xs text-[#111111]">
+              Status: <span className="uppercase text-[#111111]">Live</span>
             </div>
           </div>
         ) : (
@@ -405,7 +404,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 placeholder="Give context or roast the moment with affection..."
                 rows={3}
                 maxLength={280}
-                className="w-full bg-[#FFF9F0] border-2 border-[#111111] rounded-xl p-3 text-sm font-medium text-[#111111] placeholder:text-gray-400 shadow-brutal-xs focus:outline-none focus:bg-white focus:shadow-brutal transition-all disabled:opacity-60"
+                className="w-full bg-[#FFF9F0] border-2 border-[#111111] rounded-xl p-3 text-sm font-medium text-[#111111] placeholder:text-gray-400 shadow-brutal-xs focus:outline-none focus:bg-white disabled:opacity-60"
               />
             </div>
 
@@ -496,7 +495,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             {/* Notice */}
             <div className="flex items-center gap-2 text-[11px] font-semibold text-gray-600">
               <ShieldCheck className="w-4 h-4 text-[#8055F5] shrink-0" />
-              <span>Posts enter a pending moderation state before going live.</span>
+              <span>Posts publish immediately to the public Wall of Fame.</span>
             </div>
 
             {/* Action Buttons */}
@@ -508,7 +507,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   onClose();
                 }}
                 disabled={submitting}
-                className="px-4 py-2 bg-[#FFF9F0] border-2 border-[#111111] rounded-xl font-display font-bold text-xs uppercase tracking-wider shadow-brutal-xs hover:bg-gray-100 btn-press disabled:opacity-50"
+                className="px-4 py-2 bg-[#FFF9F0] border-2 border-[#111111] rounded-xl font-display font-bold text-xs uppercase tracking-wider shadow-brutal-xs hover:bg-gray-100 btn-press disabled:opacity-60"
               >
                 Cancel
               </button>
@@ -518,7 +517,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   type="button"
                   onClick={executeUpload}
                   disabled={submitting || !file || !consentConfirmed || !caption.trim()}
-                  className="px-4 py-2 bg-[#FFD719] text-[#111111] border-[2px] border-[#111111] rounded-xl font-display font-black text-xs uppercase tracking-wider shadow-brutal-xs btn-press flex items-center gap-1.5"
+                  className="px-4 py-2 bg-[#FFD719] text-[#111111] border-[2px] border-[#111111] rounded-xl font-display font-black text-xs uppercase tracking-wider shadow-brutal-xs btn-press flex items-center gap-1.5 disabled:opacity-60"
                 >
                   <RotateCw className="w-3.5 h-3.5" />
                   <span>Retry Upload</span>
@@ -528,7 +527,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               <button
                 type="submit"
                 disabled={submitting || !file || !consentConfirmed || !caption.trim()}
-                className="px-5 py-2.5 bg-[#FF4388] text-white border-[2.5px] border-[#111111] rounded-xl font-display font-black text-xs uppercase tracking-wider shadow-brutal-sm btn-press disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                className="px-5 py-2.5 bg-[#FF4388] text-white border-[2.5px] border-[#111111] rounded-xl font-display font-black text-xs uppercase tracking-wider shadow-brutal-sm btn-press disabled:opacity-60"
               >
                 {submitting ? (
                   <>
@@ -537,7 +536,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   </>
                 ) : (
                   <>
-                    <span>Submit for Approval</span>
+                    <span>Publish Post</span>
                     <Sparkles className="w-3.5 h-3.5" />
                   </>
                 )}
