@@ -19,7 +19,7 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && (
         (request.auth.token.email != null && (
-          request.auth.token.email == 'venkatasaipulugujju@gmail.com' ||
+          request.auth.token.email == 'venkatasaipulugju@gmail.com' ||
           request.auth.token.email.matches('(?i)^admin.*@cvv\\.ac\\.in$')
         )) ||
         (request.auth.token.admin == true) ||
@@ -82,12 +82,12 @@ service cloud.firestore {
       // List query security: must be signed in
       allow list: if isAuthorizedUser();
 
-      // Student/User creates a new post in pending status
+      // Student/User creates a new post in pending OR approved status
       allow create: if isAuthorizedUser()
         && isValidId(postId)
         && incoming().postId == postId
         && isValidPost(incoming())
-        && incoming().status == 'pending';
+        && (incoming().status == 'pending' || incoming().status == 'approved');
 
       // Post update:
       // Case 1: Admin moderation (approve, reject, remove)
