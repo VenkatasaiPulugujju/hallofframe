@@ -1,13 +1,28 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { usePosts } from '../context/PostContext';
 import { useAuth } from '../context/AuthContext';
 import type { PostCategory } from '../types';
-import { X, UploadCloud, Image, AlertCircle, CheckCircle, ShieldCheck, Sparkles } from 'lucide-react';
+import {
+  compressImageForUpload,
+  formatBytes,
+  type CompressionResult,
+} from '../utils/imageCompressor';
+import {
+  X,
+  UploadCloud,
+  AlertCircle,
+  ShieldCheck,
+  Sparkles,
+  Zap,
+  RotateCw,
+  HelpCircle,
+} from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface CreatePostModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenSetupGuide?: () => void;
 }
 
 const CATEGORIES: PostCategory[] = [
@@ -20,52 +35,88 @@ const CATEGORIES: PostCategory[] = [
   'General Chaos',
 ];
 
-export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClose }) => {
+export const CreatePostModal: React.FC<CreatePostModalProps> = ({
+  isOpen,
+  onClose,
+  onOpenSetupGuide,
+}) => {
   const { createPost } = usePosts();
   const { user } = useAuth();
 
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizedInfo, setOptimizedInfo] = useState<CompressionResult | null>(null);
+
   const [caption, setCaption] = useState('');
   const [category, setCategory] = useState<PostCategory>('General Chaos');
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [bytesInfo, setBytesInfo] = useState<{ transferred: number; total: number } | null>(null);
   const [uploadStage, setUploadStage] = useState<'compressing' | 'uploading' | 'saving' | 'done'>('compressing');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Clean up preview object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
   if (!isOpen) return null;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
     if (e.target.files && e.target.files[0]) {
       const selected = e.target.files[0];
 
-      // Validate 10MB limit (photos are optimized client-side before upload)
-      if (selected.size > 10 * 1024 * 1024) {
-        setError('Image file is too large! Maximum allowed original size is 10 MB.');
+      // Allow camera captures up to 30 MB (iPhone 14/15/16 Pro 48MP)
+      if (selected.size > 30 * 1024 * 1024) {
+        setError('Image file is too large! Maximum allowed original size is 30 MB.');
         return;
       }
 
-      // Validate type (including image/jpg)
-      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
-      if (!allowedTypes.includes(selected.type.toLowerCase()) && !selected.name.match(/\.(jpe?g|png|webp|gif)$/i)) {
-        setError('Unsupported format. Please select a JPEG, PNG, WEBP, or GIF image.');
+      // Validate format (case-insensitive, includes heic, webp, pjpeg)
+      const allowedExt = /\.(jpe?g|png|webp|gif|heic|heif)$/i;
+      const validTypes = [
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/webp',
+        'image/gif',
+        'image/pjpeg',
+        'image/heic',
+        'image/heif',
+      ];
+      if (selected.type && !validTypes.includes(selected.type.toLowerCase()) && !selected.name.match(allowedExt)) {
+        setError('Please select a photo in JPEG, PNG, WEBP, GIF, or HEIC format.');
         return;
       }
 
       setFile(selected);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
       const url = URL.createObjectURL(selected);
       setPreviewUrl(url);
+
+      // Immediately run fast background optimization
+      setIsOptimizing(true);
+      try {
+        const result = await compressImageForUpload(selected);
+        setOptimizedInfo(result);
+      } catch (optErr) {
+        console.warn('Background optimization notice:', optErr);
+      } finally {
+        setIsOptimizing(false);
+      }
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (submitting) return; // Prevent duplicate clicks
+  const executeUpload = async () => {
+    if (submitting) return;
     setError(null);
 
     if (!file) {
@@ -90,7 +141,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
 
     setSubmitting(true);
     setUploadProgress(0);
-    setUploadStage('compressing');
+    setBytesInfo(null);
+    setUploadStage(optimizedInfo ? 'uploading' : 'compressing');
 
     const result = await createPost(
       {
@@ -99,9 +151,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
         category,
         consentConfirmed,
       },
-      (progress, stage) => {
+      (progress, stage, details) => {
         setUploadProgress(progress);
         if (stage) setUploadStage(stage);
+        if (details?.bytesTransferred && details?.totalBytes) {
+          setBytesInfo({
+            transferred: details.bytesTransferred,
+            total: details.totalBytes,
+          });
+        }
       }
     );
 
@@ -123,23 +181,38 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     }
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    executeUpload();
+  };
+
   const handleReset = () => {
     setFile(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
+    setOptimizedInfo(null);
+    setIsOptimizing(false);
     setCaption('');
     setCategory('General Chaos');
     setConsentConfirmed(false);
     setUploadProgress(0);
+    setBytesInfo(null);
     setUploadStage('compressing');
     setError(null);
     setSuccess(false);
   };
 
+  const isCorsOrTimeoutError =
+    error &&
+    (error.toLowerCase().includes('cors') ||
+      error.toLowerCase().includes('0%') ||
+      error.toLowerCase().includes('timed out') ||
+      error.toLowerCase().includes('retry limit'));
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
       <div
-        className="bg-[#FFF9F0] border-[3px] border-[#111111] rounded-2xl shadow-brutal-xl w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden relative"
+        className="bg-[#FFF9F0] border-[3px] border-[#111111] rounded-2xl shadow-brutal-xl w-full max-w-xl max-h-[94vh] flex flex-col overflow-hidden relative"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -181,33 +254,93 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4">
             {error && (
-              <div className="p-3 bg-[#ffdad6] border-2 border-[#111111] rounded-xl text-xs font-bold text-red-900 flex items-center gap-2 shadow-brutal-xs">
-                <AlertCircle className="w-4 h-4 shrink-0 text-red-700" />
-                <span>{error}</span>
+              <div className="p-3.5 bg-[#ffdad6] border-2 border-[#111111] rounded-xl text-xs font-bold text-red-950 space-y-2 shadow-brutal-xs">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-700 mt-0.5" />
+                  <span className="leading-snug">{error}</span>
+                </div>
+
+                {isCorsOrTimeoutError && onOpenSetupGuide && (
+                  <div className="pt-1 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenSetupGuide();
+                      }}
+                      className="px-2.5 py-1 bg-[#111111] text-[#39D62D] rounded-lg font-mono text-[11px] font-bold flex items-center gap-1.5 hover:bg-black transition-colors"
+                    >
+                      <HelpCircle className="w-3.5 h-3.5" />
+                      <span>View 1-Step CORS Fix Guide</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
             {/* Image Dropzone / Preview */}
             <div>
-              <label className="block font-display font-bold text-xs uppercase tracking-wider text-[#111111] mb-1.5">
-                Photo (Max 5 MB • JPEG, PNG, WEBP, GIF) *
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block font-display font-bold text-xs uppercase tracking-wider text-[#111111]">
+                  Campus Photo (Camera / Gallery) *
+                </label>
+                <span className="text-[11px] font-semibold text-gray-500">
+                  Auto-optimized for 2s upload
+                </span>
+              </div>
 
               {previewUrl ? (
-                <div className="relative rounded-xl border-[2.5px] border-[#111111] overflow-hidden bg-black/5 aspect-[16/9] shadow-brutal-xs flex items-center justify-center">
-                  <img src={previewUrl} alt="Preview" className="w-full h-full object-contain" />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFile(null);
-                      setPreviewUrl(null);
-                    }}
-                    className="absolute top-2 right-2 px-2.5 py-1 bg-[#FF4388] text-white border-2 border-[#111111] rounded-lg font-display text-xs font-bold shadow-brutal-xs btn-press"
-                  >
-                    Change Image
-                  </button>
+                <div className="space-y-2">
+                  <div className="relative rounded-xl border-[2.5px] border-[#111111] overflow-hidden bg-black/5 aspect-[16/9] shadow-brutal-xs flex items-center justify-center">
+                    <img src={previewUrl} alt="Preview" className="w-full h-full object-contain" />
+                    <button
+                      type="button"
+                      disabled={submitting}
+                      onClick={() => {
+                        setFile(null);
+                        if (previewUrl) URL.revokeObjectURL(previewUrl);
+                        setPreviewUrl(null);
+                        setOptimizedInfo(null);
+                      }}
+                      className="absolute top-2 right-2 px-2.5 py-1 bg-[#FF4388] text-white border-2 border-[#111111] rounded-lg font-display text-xs font-bold shadow-brutal-xs btn-press disabled:opacity-50"
+                    >
+                      Change Photo
+                    </button>
+                  </div>
+
+                  {/* Optimization Badge & File Size Display */}
+                  {isOptimizing ? (
+                    <div className="p-2.5 bg-[#FFD719]/40 border-2 border-[#111111] rounded-xl flex items-center gap-2 text-xs font-bold text-[#111111] shadow-brutal-xs animate-pulse">
+                      <Zap className="w-4 h-4 text-[#FF4388] animate-bounce shrink-0" />
+                      <span>Optimizing high-res photo for instant upload...</span>
+                    </div>
+                  ) : optimizedInfo ? (
+                    <div className="p-2.5 bg-white border-2 border-[#111111] rounded-xl flex flex-wrap items-center justify-between gap-2 shadow-brutal-xs text-xs font-bold">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-md bg-[#39D62D] border border-black flex items-center justify-center text-xs">
+                          ⚡
+                        </span>
+                        <div>
+                          <div className="text-[#111111]">
+                            <span>{formatBytes(optimizedInfo.originalSize)}</span>
+                            <span className="mx-1 text-gray-400">→</span>
+                            <span className="text-[#39D62D] bg-[#111111] px-1.5 py-0.5 rounded text-[11px] font-mono">
+                              {formatBytes(optimizedInfo.compressedSize)}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-gray-500 font-medium">
+                            {optimizedInfo.width}×{optimizedInfo.height}px •{' '}
+                            {Math.round((1 - optimizedInfo.compressionRatio) * 100)}% smaller
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-[11px] text-green-700 font-bold bg-green-50 px-2 py-0.5 rounded-md border border-green-300">
+                        Ready for instant upload
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div
@@ -217,7 +350,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                    accept="image/*,image/jpeg,image/png,image/webp,image/gif,.heic,.HEIC,.jpg,.jpeg,.png,.webp,.gif"
                     onChange={handleFileChange}
                     className="hidden"
                   />
@@ -225,7 +358,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
                   <p className="font-display font-bold text-sm text-[#111111]">
                     Click or Drag to Upload Campus Photo
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">High-res candid photos, lab chaos, hostel engineering</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Supports high-res iPhone photos (HEIC/JPEG) • Auto-compressed to ~300KB
+                  </p>
                 </div>
               )}
             </div>
@@ -237,8 +372,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
               </label>
               <select
                 value={category}
+                disabled={submitting}
                 onChange={(e) => setCategory(e.target.value as PostCategory)}
-                className="w-full bg-[#FFF9F0] border-2 border-[#111111] rounded-xl px-3 py-2 text-sm font-semibold text-[#111111] shadow-brutal-xs focus:outline-none focus:bg-white"
+                className="w-full bg-[#FFF9F0] border-2 border-[#111111] rounded-xl px-3 py-2 text-sm font-semibold text-[#111111] shadow-brutal-xs focus:outline-none focus:bg-white disabled:opacity-60"
               >
                 {CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>
@@ -264,11 +400,12 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
               </div>
               <textarea
                 value={caption}
+                disabled={submitting}
                 onChange={(e) => setCaption(e.target.value)}
                 placeholder="Give context or roast the moment with affection..."
                 rows={3}
                 maxLength={280}
-                className="w-full bg-[#FFF9F0] border-2 border-[#111111] rounded-xl p-3 text-sm font-medium text-[#111111] placeholder:text-gray-400 shadow-brutal-xs focus:outline-none focus:bg-white focus:shadow-brutal transition-all"
+                className="w-full bg-[#FFF9F0] border-2 border-[#111111] rounded-xl p-3 text-sm font-medium text-[#111111] placeholder:text-gray-400 shadow-brutal-xs focus:outline-none focus:bg-white focus:shadow-brutal transition-all disabled:opacity-60"
               />
             </div>
 
@@ -277,9 +414,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input
                   type="checkbox"
+                  disabled={submitting}
                   checked={consentConfirmed}
                   onChange={(e) => setConsentConfirmed(e.target.checked)}
-                  className="mt-0.5 w-5 h-5 rounded border-2 border-[#111111] accent-[#111111] cursor-pointer"
+                  className="mt-0.5 w-5 h-5 rounded border-2 border-[#111111] accent-[#111111] cursor-pointer disabled:opacity-60"
                 />
                 <span className="text-xs font-bold text-[#111111] leading-tight select-none">
                   <span className="text-[#FF4388] font-black uppercase">Consent Pledge:</span> I
@@ -291,29 +429,67 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
 
             {/* Upload progress indicator */}
             {submitting && (
-              <div className="space-y-2 bg-white p-3.5 rounded-xl border-2 border-[#111111] shadow-brutal-xs">
+              <div className="space-y-2.5 bg-white p-3.5 rounded-xl border-2 border-[#111111] shadow-brutal-xs">
+                {/* Stage Indicators */}
+                <div className="grid grid-cols-3 gap-1.5 text-center text-[10px] font-bold">
+                  <div
+                    className={`p-1.5 rounded-lg border ${
+                      uploadStage === 'compressing'
+                        ? 'bg-[#FFD719] border-black text-black'
+                        : 'bg-green-100 border-green-400 text-green-900'
+                    }`}
+                  >
+                    1. Optimize {uploadStage !== 'compressing' && '✓'}
+                  </div>
+                  <div
+                    className={`p-1.5 rounded-lg border ${
+                      uploadStage === 'uploading'
+                        ? 'bg-[#FFD719] border-black text-black animate-pulse'
+                        : uploadStage === 'saving' || uploadStage === 'done'
+                        ? 'bg-green-100 border-green-400 text-green-900'
+                        : 'bg-gray-100 border-gray-300 text-gray-500'
+                    }`}
+                  >
+                    2. Upload {uploadStage === 'saving' || uploadStage === 'done' ? '✓' : ''}
+                  </div>
+                  <div
+                    className={`p-1.5 rounded-lg border ${
+                      uploadStage === 'saving'
+                        ? 'bg-[#FFD719] border-black text-black animate-pulse'
+                        : uploadStage === 'done'
+                        ? 'bg-green-100 border-green-400 text-green-900'
+                        : 'bg-gray-100 border-gray-300 text-gray-500'
+                    }`}
+                  >
+                    3. Publish {uploadStage === 'done' && '✓'}
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between text-xs font-bold text-[#111111]">
                   <span className="flex items-center gap-1.5">
-                    {uploadStage === 'compressing' && <span>⚡ Optimizing image for web...</span>}
-                    {uploadStage === 'uploading' && <span>☁️ Uploading to Cloud Storage...</span>}
-                    {uploadStage === 'saving' && <span>📝 Publishing to Wall of Fame...</span>}
+                    {uploadStage === 'compressing' && <span>⚡ Optimizing image resolution...</span>}
+                    {uploadStage === 'uploading' && <span>☁️ Transferring to Firebase Storage...</span>}
+                    {uploadStage === 'saving' && <span>📝 Publishing post to Wall of Fame...</span>}
                     {uploadStage === 'done' && <span>🎉 Post submitted!</span>}
                   </span>
-                  <span className="font-mono bg-[#FFD719] px-2 py-0.5 rounded-md border border-[#111111] text-[11px] font-black">
-                    {uploadProgress}%
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {bytesInfo && uploadStage === 'uploading' && (
+                      <span className="text-[10px] font-mono text-gray-600">
+                        {formatBytes(bytesInfo.transferred)} / {formatBytes(bytesInfo.total)}
+                      </span>
+                    )}
+                    <span className="font-mono bg-[#FFD719] px-2 py-0.5 rounded-md border border-[#111111] text-[11px] font-black">
+                      {uploadProgress}%
+                    </span>
+                  </div>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-3.5 border border-[#111111] overflow-hidden">
+
+                <div className="w-full bg-gray-200 rounded-full h-3 border border-[#111111] overflow-hidden">
                   <div
-                    className="bg-[#39D62D] h-full transition-all duration-200 rounded-full"
+                    className="bg-[#39D62D] h-full transition-all duration-150 rounded-full"
                     style={{ width: `${Math.min(100, Math.max(5, uploadProgress))}%` }}
                   />
                 </div>
-                {uploadProgress < 90 && (
-                  <p className="text-[10px] text-gray-500 font-medium">
-                    Resumable stream active. Files are automatically compressed for high performance on campus networks.
-                  </p>
-                )}
               </div>
             )}
 
@@ -332,10 +508,22 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
                   onClose();
                 }}
                 disabled={submitting}
-                className="px-4 py-2 bg-[#FFF9F0] border-2 border-[#111111] rounded-xl font-display font-bold text-xs uppercase tracking-wider shadow-brutal-xs hover:bg-gray-100 btn-press"
+                className="px-4 py-2 bg-[#FFF9F0] border-2 border-[#111111] rounded-xl font-display font-bold text-xs uppercase tracking-wider shadow-brutal-xs hover:bg-gray-100 btn-press disabled:opacity-50"
               >
                 Cancel
               </button>
+
+              {error && (
+                <button
+                  type="button"
+                  onClick={executeUpload}
+                  disabled={submitting || !file || !consentConfirmed || !caption.trim()}
+                  className="px-4 py-2 bg-[#FFD719] text-[#111111] border-[2px] border-[#111111] rounded-xl font-display font-black text-xs uppercase tracking-wider shadow-brutal-xs btn-press flex items-center gap-1.5"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                  <span>Retry Upload</span>
+                </button>
+              )}
 
               <button
                 type="submit"

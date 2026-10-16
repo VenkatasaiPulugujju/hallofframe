@@ -25,7 +25,6 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
 
   const handleReactionClick = (type: ReactionType) => {
     if (!user) {
-      alert('Please sign in with your @cvv.ac.in account to react!');
       return;
     }
     if ((type === 'skull' || type === 'heart') && activeReaction !== type) {

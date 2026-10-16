@@ -174,6 +174,7 @@ const MainContent: React.FC = () => {
       <CreatePostModal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
+        onOpenSetupGuide={() => setIsGuideOpen(true)}
       />
 
       <ReportModal

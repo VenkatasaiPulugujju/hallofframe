@@ -31,7 +31,6 @@ export const ReportModal: React.FC<ReportModalProps> = ({ post, onClose }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
-      alert('Please sign in to submit a report.');
       return;
     }
 

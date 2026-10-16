@@ -37,7 +37,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onOpenDetail, onOpenRe
   const handleReactionClick = (e: React.MouseEvent, type: ReactionType) => {
     e.stopPropagation();
     if (!user) {
-      alert('Please sign in with your @cvv.ac.in account to react!');
       return;
     }
 

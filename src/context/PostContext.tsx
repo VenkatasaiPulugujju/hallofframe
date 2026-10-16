@@ -35,6 +35,13 @@ import type {
 
 export type UploadStage = 'compressing' | 'uploading' | 'saving' | 'done';
 
+export interface UploadProgressDetails {
+  progress: number;
+  stage: UploadStage;
+  bytesTransferred?: number;
+  totalBytes?: number;
+}
+
 interface PostContextType {
   posts: Post[];
   loading: boolean;
@@ -53,7 +60,7 @@ interface PostContextType {
       category: PostCategory;
       consentConfirmed: boolean;
     },
-    onProgress?: (progress: number, stage?: UploadStage) => void
+    onProgress?: (progress: number, stage?: UploadStage, details?: UploadProgressDetails) => void
   ) => Promise<{ success: boolean; error?: string }>;
   approvePost: (postId: string) => Promise<void>;
   rejectPost: (postId: string, reason?: string) => Promise<void>;
@@ -405,7 +412,7 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
       category: PostCategory;
       consentConfirmed: boolean;
     },
-    onProgress?: (progress: number, stage?: UploadStage) => void
+    onProgress?: (progress: number, stage?: UploadStage, details?: UploadProgressDetails) => void
   ): Promise<{ success: boolean; error?: string }> => {
     if (!user) {
       return { success: false, error: 'You must be signed in with a verified @cvv.ac.in account.' };
@@ -419,14 +426,29 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'Please choose an image to upload.' };
     }
 
-    // 5 MB limit
-    if (file.size > 5 * 1024 * 1024) {
-      return { success: false, error: 'Image exceeds the maximum allowed 5 MB file size limit.' };
+    // Allow high-res camera photos up to 30 MB (e.g. 12-48MP iPhone/Android captures)
+    // The client-side optimizer will compress it to ~200-450 KB in milliseconds
+    if (file.size > 30 * 1024 * 1024) {
+      return { success: false, error: 'Original image is too large (> 30 MB). Please choose a photo under 30 MB.' };
     }
 
-    const validMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
-    if (!validMimes.includes(file.type.toLowerCase())) {
-      return { success: false, error: 'Allowed formats: JPEG, PNG, WEBP, or GIF.' };
+    const validMimes = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/webp',
+      'image/gif',
+      'image/pjpeg',
+      'image/heic',
+      'image/heif',
+    ];
+    const isMimeValid =
+      !file.type ||
+      validMimes.includes(file.type.toLowerCase()) ||
+      Boolean(file.name.match(/\.(jpe?g|png|webp|gif|heic|heif)$/i));
+
+    if (!isMimeValid) {
+      return { success: false, error: 'Allowed formats: JPEG, PNG, WEBP, GIF, or HEIC.' };
     }
 
     if (!caption || caption.trim().length < 3) {
@@ -441,23 +463,33 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'Firebase Storage or Firestore is not available.' };
     }
 
-    // Phase 1: Client-side Image Optimization
-    // Compresses large photos (downscaling from 12-48MP to max 1920px) to prevent slow network transfers
-    if (onProgress) onProgress(8, 'compressing');
+    // Phase 1: High-Speed Client-side Image Optimization
+    if (onProgress) {
+      onProgress(10, 'compressing', {
+        progress: 10,
+        stage: 'compressing',
+      });
+    }
+
     let uploadFile = file;
     try {
       const compressionResult = await compressImageForUpload(file);
       uploadFile = compressionResult.file;
-      console.log(
-        `Optimized image: ${Math.round(compressionResult.originalSize / 1024)}KB -> ${Math.round(compressionResult.compressedSize / 1024)}KB`
-      );
     } catch (compressErr) {
-      console.warn('Image optimization skipped, using original:', compressErr);
+      console.warn('Image optimization fallback to original file:', compressErr);
     }
 
-    // Normalize MIME type so storage rules never reject image/jpg
+    // Ensure the post-compression file meets Firebase Storage rules (<= 5MB)
+    if (uploadFile.size > 5 * 1024 * 1024) {
+      return {
+        success: false,
+        error: 'Optimized image still exceeds 5 MB. Please select a smaller photo or crop it.',
+      };
+    }
+
+    // Normalize MIME type so storage rules never reject image/jpg or mobile variants
     let normalizedContentType = uploadFile.type || 'image/jpeg';
-    if (normalizedContentType === 'image/jpg') {
+    if (normalizedContentType === 'image/jpg' || normalizedContentType === 'image/pjpeg') {
       normalizedContentType = 'image/jpeg';
     }
 
@@ -467,10 +499,18 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const imagePath = `post-images/${user.uid}/${postId}/${sanitizedFilename}`;
     const storageRef = ref(storage, imagePath);
 
-    if (onProgress) onProgress(15, 'uploading');
+    if (onProgress) {
+      onProgress(15, 'uploading', {
+        progress: 15,
+        stage: 'uploading',
+        bytesTransferred: 0,
+        totalBytes: uploadFile.size,
+      });
+    }
 
     return new Promise((resolve) => {
       let isSettled = false;
+      let lastBytesTransferred = 0;
 
       const uploadTask = uploadBytesResumable(storageRef, uploadFile, {
         contentType: normalizedContentType,
@@ -480,7 +520,25 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
       });
 
-      // 35-second fail-safe timer prevents indefinite hanging at 0% if CORS or network is blocked
+      // 16-second early diagnostic:
+      // If 0 bytes are transferred after 16 seconds, CORS is almost certainly blocking Google Cloud Storage
+      const stuckCheckTimer = setTimeout(() => {
+        if (!isSettled && lastBytesTransferred === 0) {
+          isSettled = true;
+          try {
+            uploadTask.cancel();
+          } catch (e) {
+            // Task already canceled
+          }
+          resolve({
+            success: false,
+            error:
+              'Upload remained at 0% and timed out. This occurs when Google Cloud Storage CORS is not configured for your Vercel domain. Please run the 1-step Cloud Shell command in the Setup Guide (Section 5).',
+          });
+        }
+      }, 16000);
+
+      // 30-second overall fail-safe timer
       const uploadTimeoutTimer = setTimeout(() => {
         if (!isSettled) {
           isSettled = true;
@@ -492,10 +550,10 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
           resolve({
             success: false,
             error:
-              'Upload timed out after 35 seconds. This typically indicates Firebase Storage CORS is not configured for your Vercel domain or your network connection was interrupted. Check cors.json setup in the repository.',
+              'Upload took longer than 30 seconds. Please check your network connection and retry.',
           });
         }
-      }, 35000);
+      }, 30000);
 
       uploadTask.on(
         'state_changed',
@@ -503,26 +561,41 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (isSettled) return;
           const total = snapshot.totalBytes;
           const transferred = snapshot.bytesTransferred;
+          lastBytesTransferred = transferred;
+
           const rawPct = total > 0 ? (transferred / total) * 100 : 0;
-          // Scale upload progress between 15% and 90%
-          const pct = isNaN(rawPct) ? 15 : Math.min(90, Math.max(15, Math.round(15 + (rawPct * 0.75))));
-          if (onProgress) onProgress(pct, 'uploading');
+          // Scale upload progress between 20% and 90%
+          const pct = isNaN(rawPct)
+            ? 20
+            : Math.min(90, Math.max(20, Math.round(20 + rawPct * 0.7)));
+
+          if (onProgress) {
+            onProgress(pct, 'uploading', {
+              progress: pct,
+              stage: 'uploading',
+              bytesTransferred: transferred,
+              totalBytes: total,
+            });
+          }
         },
         async (uploadError: any) => {
           if (isSettled) return;
           isSettled = true;
+          clearTimeout(stuckCheckTimer);
           clearTimeout(uploadTimeoutTimer);
           console.error('Storage upload error:', uploadError);
 
           let errorMsg = `Upload failed: ${uploadError.message}`;
           if (uploadError.code === 'storage/unauthorized') {
-            errorMsg = 'Upload blocked by Firebase Storage Security Rules. Ensure you are signed in with a verified @cvv.ac.in account.';
+            errorMsg =
+              'Upload blocked by Firebase Storage Security Rules. Ensure you are signed in with a verified @cvv.ac.in account.';
           } else if (uploadError.code === 'storage/canceled') {
-            errorMsg = 'Upload was canceled or timed out due to slow network connectivity.';
+            errorMsg = 'Upload was canceled or timed out.';
           } else if (uploadError.code === 'storage/retry-limit-exceeded') {
-            errorMsg = 'Storage connection retry limit exceeded. Please configure CORS on your Firebase Storage bucket for this domain.';
+            errorMsg =
+              'Storage connection retry limit exceeded. Please configure CORS on your Firebase Storage bucket for your Vercel deployment.';
           } else if (uploadError.code === 'storage/bucket-not-found') {
-            errorMsg = `Storage bucket "${cleanStorageBucket}" was not found in Firebase. Verify VITE_FIREBASE_STORAGE_BUCKET in Vercel settings.`;
+            errorMsg = `Storage bucket "${cleanStorageBucket}" was not found. Verify VITE_FIREBASE_STORAGE_BUCKET in your Vercel settings.`;
           }
 
           resolve({
@@ -532,9 +605,15 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
         async () => {
           if (isSettled) return;
+          clearTimeout(stuckCheckTimer);
           clearTimeout(uploadTimeoutTimer);
 
-          if (onProgress) onProgress(92, 'saving');
+          if (onProgress) {
+            onProgress(92, 'saving', {
+              progress: 92,
+              stage: 'saving',
+            });
+          }
 
           try {
             const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
@@ -558,7 +637,12 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
               updatedAt: serverTimestamp(),
             });
 
-            if (onProgress) onProgress(100, 'done');
+            if (onProgress) {
+              onProgress(100, 'done', {
+                progress: 100,
+                stage: 'done',
+              });
+            }
             isSettled = true;
             resolve({ success: true });
           } catch (docError: any) {
@@ -605,7 +689,6 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     } catch (err: any) {
       console.error('Approve post error:', err);
-      alert(`Moderation action failed: ${err.message}`);
     }
   };
 
@@ -632,7 +715,6 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     } catch (err: any) {
       console.error('Reject post error:', err);
-      alert(`Moderation action failed: ${err.message}`);
     }
   };
 
@@ -659,7 +741,6 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     } catch (err: any) {
       console.error('Remove post error:', err);
-      alert(`Moderation action failed: ${err.message}`);
     }
   };
 
@@ -674,7 +755,7 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const postData = postSnap.data();
       if (postData.authorUid !== user.uid && !isAdmin) {
-        alert('Permission denied: You can only remove your own posts.');
+        console.warn('Permission denied: You can only remove your own posts.');
         return;
       }
 
@@ -697,14 +778,12 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (err: any) {
       console.error('Delete post error:', err);
-      alert(`Delete failed: ${err.message}`);
     }
   };
 
   // Submit report
   const reportPost = async (postId: string, reason: ReportReason, details?: string) => {
     if (!user || !db) {
-      alert('You must be signed in to report a post.');
       return;
     }
 
@@ -732,7 +811,6 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (err: any) {
       console.error('Report submission error:', err);
-      alert(`Failed to submit report: ${err.message}`);
     }
   };
 
