@@ -2,14 +2,12 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { usePosts } from '../context/PostContext';
 import {
-  Flame,
   PlusCircle,
   ShieldCheck,
   User as UserIcon,
   Search,
   BookOpen,
   LogOut,
-  Sparkles,
   Award,
 } from 'lucide-react';
 
@@ -35,23 +33,29 @@ export const Header: React.FC<HeaderProps> = ({
   const [showSearchMobile, setShowSearchMobile] = useState(false);
 
   return (
-    <header className="sticky top-0 z-40 bg-[#FFD719] border-b-[3px] border-[#111111] px-4 py-3 select-none">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-        {/* Brand Logo & Tagline */}
+    <header className="sticky top-0 z-40 bg-[#FFD719] border-b-[3px] border-[#111111] px-2.5 sm:px-4 py-2 sm:py-3 select-none">
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-3">
+        {/* Brand Logo & Title (Top-Left) */}
         <div
           onClick={() => setCurrentTab('feed')}
-          className="flex items-center gap-2 cursor-pointer group"
+          className="flex items-center gap-2 sm:gap-2.5 cursor-pointer group min-w-0"
         >
-          <div className="w-11 h-11 bg-[#FFF9F0] border-[2.5px] border-[#111111] rounded-xl flex items-center justify-center shadow-brutal-sm group-hover:-rotate-3 transition-transform">
-            <span className="text-2xl">💀</span>
+          {/* Skull Container - Fixed size, never shrinks or overlaps */}
+          <div className="w-9 h-9 sm:w-11 sm:h-11 bg-[#FFF9F0] border-[2.5px] border-[#111111] rounded-xl flex items-center justify-center shadow-brutal-sm group-hover:-rotate-3 transition-transform shrink-0">
+            <span className="text-xl sm:text-2xl leading-none">💀</span>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-display font-extrabold text-xl md:text-2xl tracking-tight text-[#111111]">
-                CAMPUS WALL <span className="bg-[#FF4388] text-white px-1.5 py-0.5 rounded-md text-sm border-2 border-[#111111] shadow-brutal-xs uppercase">OF FAME</span>
+
+          {/* Title and Badge */}
+          <div className="min-w-0 flex flex-col justify-center">
+            <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap sm:flex-nowrap">
+              <span className="font-display font-extrabold text-sm sm:text-lg md:text-xl lg:text-2xl tracking-tight text-[#111111] whitespace-nowrap leading-tight">
+                CAMPUS WALL
+              </span>
+              <span className="bg-[#FF4388] text-white px-1.5 py-0.5 rounded-md text-[10px] sm:text-xs md:text-sm font-display font-black border-2 border-[#111111] shadow-brutal-xs uppercase whitespace-nowrap tracking-wider inline-block">
+                OF FAME
               </span>
             </div>
-            <p className="text-[11px] font-bold text-[#111111]/80 hidden sm:block tracking-wide">
+            <p className="text-[10px] sm:text-[11px] font-bold text-[#111111]/80 hidden md:block tracking-wide">
               YOUR CAMPUS. YOUR CHAOS. 🔥
             </p>
           </div>
@@ -79,42 +83,42 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Navigation Action Buttons */}
-        <div className="flex items-center gap-2">
+        {/* Navigation Action Buttons (Right) */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Search Toggle Mobile */}
           <button
             onClick={() => setShowSearchMobile(!showSearchMobile)}
-            className="md:hidden p-2 bg-[#FFF9F0] border-2 border-[#111111] rounded-lg shadow-brutal-xs btn-press"
+            className="md:hidden p-1.5 sm:p-2 bg-[#FFF9F0] border-2 border-[#111111] rounded-lg shadow-brutal-xs btn-press"
             aria-label="Toggle Search"
           >
-            <Search className="w-5 h-5 text-[#111111]" />
+            <Search className="w-4 h-4 sm:w-5 sm:h-5 text-[#111111]" />
           </button>
 
           {/* Trending Tab Button */}
           <button
             onClick={() => setCurrentTab(currentTab === 'trending' ? 'feed' : 'trending')}
-            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 border-[#111111] font-display font-bold text-xs uppercase tracking-wider btn-press ${
+            className={`hidden sm:flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border-2 border-[#111111] font-display font-bold text-xs uppercase tracking-wider btn-press ${
               currentTab === 'trending'
                 ? 'bg-[#FF4388] text-white shadow-brutal-xs'
                 : 'bg-[#FFF9F0] text-[#111111] hover:bg-[#ffe170]'
             }`}
           >
             <Award className="w-4 h-4" />
-            <span>Trending</span>
+            <span className="hidden md:inline">Trending</span>
           </button>
 
           {/* Moderation Dashboard for Admins */}
           {isAdmin && (
             <button
               onClick={() => setCurrentTab(currentTab === 'moderation' ? 'feed' : 'moderation')}
-              className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 border-[#111111] font-display font-bold text-xs uppercase tracking-wider btn-press ${
+              className={`relative flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border-2 border-[#111111] font-display font-bold text-xs uppercase tracking-wider btn-press ${
                 currentTab === 'moderation'
                   ? 'bg-[#8055F5] text-white shadow-brutal-xs'
                   : 'bg-[#FFF9F0] text-[#111111] hover:bg-[#e0d4ff]'
               }`}
             >
               <ShieldCheck className="w-4 h-4" />
-              <span>Mod Queue</span>
+              <span className="hidden sm:inline">Mod Queue</span>
               {pendingPosts.length > 0 && (
                 <span className="w-5 h-5 bg-[#FF4388] text-white text-[10px] font-black rounded-full flex items-center justify-center border border-[#111111] -mr-1">
                   {pendingPosts.length}
@@ -123,7 +127,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Setup & Security Guide Button */}
+          {/* Setup & Security Guide Button (Desktop only) */}
           <button
             onClick={onOpenGuide}
             title="Firebase Setup, Rules & Deployment Guide"
@@ -136,29 +140,29 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Post Moment CTA */}
           <button
             onClick={user ? onOpenCreate : onOpenLogin}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#FF4388] text-white border-[2.5px] border-[#111111] rounded-lg font-display font-black text-xs uppercase tracking-wider shadow-brutal-sm btn-press active:translate-x-[2px] active:translate-y-[2px]"
+            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3.5 py-1.5 bg-[#FF4388] text-white border-[2.5px] border-[#111111] rounded-lg font-display font-black text-xs uppercase tracking-wider shadow-brutal-sm btn-press active:translate-x-[2px] active:translate-y-[2px]"
           >
-            <PlusCircle className="w-4 h-4 stroke-[2.5]" />
-            <span className="hidden xs:inline">Post Chaos</span>
-            <span className="xs:hidden">Post</span>
+            <PlusCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
+            <span className="hidden sm:inline">Post Chaos</span>
+            <span className="sm:hidden font-bold">Post</span>
           </button>
 
           {/* User Profile or Sign In */}
           {user ? (
-            <div className="flex items-center gap-1.5 ml-1">
+            <div className="flex items-center gap-1 sm:gap-1.5">
               <button
                 onClick={onOpenProfile}
-                className="flex items-center gap-1.5 p-1 bg-[#FFF9F0] border-2 border-[#111111] rounded-lg shadow-brutal-xs hover:bg-white btn-press"
+                className="flex items-center gap-1 sm:gap-1.5 p-1 bg-[#FFF9F0] border-2 border-[#111111] rounded-lg shadow-brutal-xs hover:bg-white btn-press"
                 title={`${user.displayName} (${user.email})`}
               >
                 {user.photoURL ? (
                   <img
                     src={user.photoURL}
                     alt={user.displayName}
-                    className="w-7 h-7 rounded-md object-cover border border-[#111111]"
+                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-md object-cover border border-[#111111]"
                   />
                 ) : (
-                  <div className="w-7 h-7 rounded-md bg-[#8055F5] text-white font-bold flex items-center justify-center text-xs">
+                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-md bg-[#8055F5] text-white font-bold flex items-center justify-center text-[11px] sm:text-xs">
                     {user.displayName.charAt(0).toUpperCase()}
                   </div>
                 )}
@@ -169,19 +173,20 @@ export const Header: React.FC<HeaderProps> = ({
 
               <button
                 onClick={signOut}
-                className="p-1.5 bg-[#FFF9F0] hover:bg-[#ffdad6] border-2 border-[#111111] rounded-lg shadow-brutal-xs btn-press text-red-700"
+                className="p-1 sm:p-1.5 bg-[#FFF9F0] hover:bg-[#ffdad6] border-2 border-[#111111] rounded-lg shadow-brutal-xs btn-press text-red-700"
                 title="Sign Out"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
             </div>
           ) : (
             <button
               onClick={onOpenLogin}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FFF9F0] border-2 border-[#111111] rounded-lg font-display font-bold text-xs uppercase tracking-wider shadow-brutal-xs hover:bg-white btn-press"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-[#FFF9F0] border-2 border-[#111111] rounded-lg font-display font-bold text-xs uppercase tracking-wider shadow-brutal-xs hover:bg-white btn-press shrink-0"
             >
-              <UserIcon className="w-4 h-4" />
-              <span>Sign In</span>
+              <UserIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Sign In</span>
+              <span className="sm:hidden">Login</span>
             </button>
           )}
         </div>
@@ -203,7 +208,6 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
       )}
-
     </header>
   );
 };

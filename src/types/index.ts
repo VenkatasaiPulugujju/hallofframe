@@ -19,7 +19,7 @@ export type PostCategory =
   | 'Library Stealth'
   | 'General Chaos';
 
-export type ReactionType = 'laugh' | 'skull' | 'clown';
+export type ReactionType = 'laugh' | 'skull' | 'clown' | 'heart';
 
 export type PostStatus = 'pending' | 'approved' | 'rejected' | 'removed';
 
@@ -27,6 +27,7 @@ export interface ReactionCounts {
   laugh: number;
   skull: number;
   clown: number;
+  heart: number;
 }
 
 export interface Post {

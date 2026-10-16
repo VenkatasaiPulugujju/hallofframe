@@ -167,7 +167,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Check email presence
       if (!rawEmail || !normalizedEmail) {
-        await fbSignOut(auth);
+        if (auth) await fbSignOut(auth);
         setUser(null);
         setIsAdmin(false);
         setAuthError('Authentication failed: Google account did not supply an email address.');
@@ -177,7 +177,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Check email verification
       if (!result.user.emailVerified) {
-        await fbSignOut(auth);
+        if (auth) await fbSignOut(auth);
         setUser(null);
         setIsAdmin(false);
         setRejectedEmail(rawEmail);
@@ -188,7 +188,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Strict domain check: must end with @cvv.ac.in and match regex
       if (!isCvvEmail(normalizedEmail)) {
-        await fbSignOut(auth);
+        if (auth) await fbSignOut(auth);
         setUser(null);
         setIsAdmin(false);
         setRejectedEmail(rawEmail);

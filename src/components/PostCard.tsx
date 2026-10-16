@@ -41,13 +41,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onOpenDetail, onOpenRe
       return;
     }
 
-    // Trigger celebratory micro-confetti on skull or clown
-    if (type === 'skull' && activeReaction !== 'skull') {
+    // Trigger celebratory micro-confetti on skull or heart
+    if ((type === 'skull' || type === 'heart') && activeReaction !== type) {
       confetti({
-        particleCount: 15,
+        particleCount: 16,
         spread: 45,
         origin: { y: 0.8 },
-        colors: ['#111111', '#FF4388', '#FFD719'],
+        colors:
+          type === 'heart'
+            ? ['#FF2A6D', '#FF4388', '#FFD719', '#FFFFFF']
+            : ['#111111', '#FF4388', '#FFD719'],
       });
     }
 
@@ -223,6 +226,20 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onOpenDetail, onOpenRe
             >
               <span className="text-sm">🤡</span>
               <span>{post.reactionCounts.clown}</span>
+            </button>
+
+            {/* Heart ❤️ */}
+            <button
+              onClick={(e) => handleReactionClick(e, 'heart')}
+              className={`h-8 px-2.5 rounded-full border-2 border-[#111111] flex items-center gap-1 font-display font-black text-xs btn-press ${
+                activeReaction === 'heart'
+                  ? 'bg-[#FF2A6D] text-white shadow-brutal-xs scale-105'
+                  : 'bg-[#FFF9F0] hover:bg-[#ffe4ec] shadow-brutal-xs'
+              }`}
+              title="Love / Heart"
+            >
+              <span className="text-sm">❤️</span>
+              <span>{post.reactionCounts.heart || 0}</span>
             </button>
           </div>
 

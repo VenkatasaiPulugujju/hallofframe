@@ -100,6 +100,7 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
         laugh: Number(data.reactionCounts?.laugh) || 0,
         skull: Number(data.reactionCounts?.skull) || 0,
         clown: Number(data.reactionCounts?.clown) || 0,
+        heart: Number(data.reactionCounts?.heart) || 0,
       },
       reportCount: Number(data.reportCount) || 0,
       createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt || new Date().toISOString(),
@@ -341,6 +342,7 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
           laugh: Number(postData.reactionCounts?.laugh) || 0,
           skull: Number(postData.reactionCounts?.skull) || 0,
           clown: Number(postData.reactionCounts?.clown) || 0,
+          heart: Number(postData.reactionCounts?.heart) || 0,
         };
 
         if (reactionDoc.exists()) {
@@ -479,7 +481,7 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
               category,
               status: 'pending', // Pending moderation
               consentConfirmed: true,
-              reactionCounts: { laugh: 0, skull: 0, clown: 0 },
+              reactionCounts: { laugh: 0, skull: 0, clown: 0, heart: 0 },
               reportCount: 0,
               createdAt: serverTimestamp(),
               updatedAt: serverTimestamp(),
@@ -692,8 +694,16 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Calculate trending rankings purely from real approved posts and valid reactions
   const trendingPosts = [...posts].sort((a, b) => {
-    const totalA = a.reactionCounts.laugh + a.reactionCounts.skull + a.reactionCounts.clown;
-    const totalB = b.reactionCounts.laugh + b.reactionCounts.skull + b.reactionCounts.clown;
+    const totalA =
+      (a.reactionCounts.laugh || 0) +
+      (a.reactionCounts.skull || 0) +
+      (a.reactionCounts.clown || 0) +
+      (a.reactionCounts.heart || 0);
+    const totalB =
+      (b.reactionCounts.laugh || 0) +
+      (b.reactionCounts.skull || 0) +
+      (b.reactionCounts.clown || 0) +
+      (b.reactionCounts.heart || 0);
     return totalB - totalA;
   });
 

@@ -28,8 +28,15 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
       alert('Please sign in with your @cvv.ac.in account to react!');
       return;
     }
-    if (type === 'skull' && activeReaction !== 'skull') {
-      confetti({ particleCount: 20, spread: 50, colors: ['#111111', '#FF4388', '#FFD719'] });
+    if ((type === 'skull' || type === 'heart') && activeReaction !== type) {
+      confetti({
+        particleCount: 22,
+        spread: 55,
+        colors:
+          type === 'heart'
+            ? ['#FF2A6D', '#FF4388', '#FFD719', '#FFFFFF']
+            : ['#111111', '#FF4388', '#FFD719'],
+      });
     }
     toggleReaction(currentPost.postId, type);
   };
@@ -155,6 +162,19 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
               >
                 <span className="text-base">🤡</span>
                 <span>{currentPost.reactionCounts.clown}</span>
+              </button>
+
+              {/* Heart */}
+              <button
+                onClick={() => handleReactionClick('heart')}
+                className={`h-10 px-3.5 rounded-full border-2 border-[#111111] flex items-center gap-1.5 font-display font-black text-sm btn-press ${
+                  activeReaction === 'heart'
+                    ? 'bg-[#FF2A6D] text-white shadow-brutal-xs scale-105'
+                    : 'bg-[#FFF9F0] hover:bg-[#ffe4ec] shadow-brutal-xs'
+                }`}
+              >
+                <span className="text-base">❤️</span>
+                <span>{currentPost.reactionCounts.heart || 0}</span>
               </button>
             </div>
 

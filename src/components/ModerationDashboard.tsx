@@ -302,7 +302,7 @@ export const ModerationDashboard: React.FC<ModerationDashboardProps> = ({ onOpen
 
                 <div className="pt-2 mt-2 border-t border-gray-300 flex items-center justify-between">
                   <span className="text-[10px] font-bold text-gray-600">
-                    👍 {post.reactionCounts.laugh + post.reactionCounts.skull + post.reactionCounts.clown} reactions
+                    👍 {post.reactionCounts.laugh + post.reactionCounts.skull + post.reactionCounts.clown + (post.reactionCounts.heart || 0)} reactions
                   </span>
                   <button
                     onClick={() => {

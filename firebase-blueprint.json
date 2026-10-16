@@ -139,8 +139,8 @@
         },
         "type": {
           "type": "string",
-          "enum": ["laugh", "skull", "clown"],
-          "description": "Emoji type: laugh, skull, or clown"
+          "enum": ["laugh", "skull", "clown", "heart"],
+          "description": "Emoji type: laugh, skull, clown, or heart"
         },
         "createdAt": {
           "type": "string",

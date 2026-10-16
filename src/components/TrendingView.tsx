@@ -120,7 +120,7 @@ export const TrendingView: React.FC<TrendingViewProps> = ({
                   </div>
 
                   {/* Aggregated score counter */}
-                  <div className="bg-[#FFF9F0] p-4 rounded-xl border-2 border-[#111111] shadow-brutal-sm flex items-center justify-around">
+                  <div className="bg-[#FFF9F0] p-3 sm:p-4 rounded-xl border-2 border-[#111111] shadow-brutal-sm flex items-center justify-around">
                     <div className="text-center">
                       <div className="text-xl">😂</div>
                       <div className="font-display font-black text-base text-[#111111]">
@@ -143,6 +143,14 @@ export const TrendingView: React.FC<TrendingViewProps> = ({
                         {postOfTheDay.reactionCounts.clown}
                       </div>
                       <div className="text-[10px] uppercase font-bold text-gray-500">Clowns</div>
+                    </div>
+                    <div className="h-8 w-[2px] bg-[#111111]/20" />
+                    <div className="text-center">
+                      <div className="text-xl">❤️</div>
+                      <div className="font-display font-black text-base text-[#111111]">
+                        {postOfTheDay.reactionCounts.heart || 0}
+                      </div>
+                      <div className="text-[10px] uppercase font-bold text-gray-500">Hearts</div>
                     </div>
                   </div>
 

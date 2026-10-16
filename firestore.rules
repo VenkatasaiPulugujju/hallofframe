@@ -112,7 +112,8 @@ service cloud.firestore {
         && incoming().keys().hasAll(['postId', 'authorUid', 'authorDisplayName', 'imagePath', 'caption', 'category', 'status', 'consentConfirmed', 'reactionCounts', 'reportCount', 'createdAt'])
         && incoming().reactionCounts.laugh == 0
         && incoming().reactionCounts.skull == 0
-        && incoming().reactionCounts.clown == 0;
+        && incoming().reactionCounts.clown == 0
+        && incoming().reactionCounts.heart == 0;
 
       // Post update:
       // Case 1: Admin moderation (approve, reject, remove)
@@ -143,7 +144,7 @@ service cloud.firestore {
           && request.auth.uid == uid
           && isValidId(uid)
           && incoming().uid == uid
-          && incoming().type in ['laugh', 'skull', 'clown']
+          && incoming().type in ['laugh', 'skull', 'clown', 'heart']
           && incoming().keys().hasAll(['uid', 'type', 'createdAt'])
           && incoming().keys().hasOnly(['uid', 'type', 'createdAt', 'updatedAt']);
 
