@@ -1,0 +1,5 @@
+Redeploy trigger for Vercel
+
+This file forces a new deployment on Vercel by creating a repository change.
+
+Trigger timestamp: 2026-10-16T10:30:00Z
