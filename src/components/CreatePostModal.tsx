@@ -31,6 +31,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStage, setUploadStage] = useState<'compressing' | 'uploading' | 'saving' | 'done'>('compressing');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -43,14 +44,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     if (e.target.files && e.target.files[0]) {
       const selected = e.target.files[0];
 
-      // Validate 5MB limit
-      if (selected.size > 5 * 1024 * 1024) {
-        setError('Image file is too large! Maximum allowed size is 5 MB.');
+      // Validate 10MB limit (photos are optimized client-side before upload)
+      if (selected.size > 10 * 1024 * 1024) {
+        setError('Image file is too large! Maximum allowed original size is 10 MB.');
         return;
       }
 
-      // Validate type
-      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(selected.type)) {
+      // Validate type (including image/jpg)
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+      if (!allowedTypes.includes(selected.type.toLowerCase()) && !selected.name.match(/\.(jpe?g|png|webp|gif)$/i)) {
         setError('Unsupported format. Please select a JPEG, PNG, WEBP, or GIF image.');
         return;
       }
@@ -63,6 +65,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return; // Prevent duplicate clicks
     setError(null);
 
     if (!file) {
@@ -87,6 +90,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
 
     setSubmitting(true);
     setUploadProgress(0);
+    setUploadStage('compressing');
+
     const result = await createPost(
       {
         file,
@@ -94,7 +99,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
         category,
         consentConfirmed,
       },
-      (progress) => setUploadProgress(progress)
+      (progress, stage) => {
+        setUploadProgress(progress);
+        if (stage) setUploadStage(stage);
+      }
     );
 
     setSubmitting(false);
@@ -122,6 +130,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     setCaption('');
     setCategory('General Chaos');
     setConsentConfirmed(false);
+    setUploadProgress(0);
+    setUploadStage('compressing');
     setError(null);
     setSuccess(false);
   };
@@ -207,7 +217,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
                     onChange={handleFileChange}
                     className="hidden"
                   />
@@ -281,17 +291,29 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
 
             {/* Upload progress indicator */}
             {submitting && (
-              <div className="space-y-1 bg-white p-3 rounded-xl border-2 border-[#111111] shadow-brutal-xs">
-                <div className="flex items-center justify-between text-xs font-bold">
-                  <span>Uploading to Cloud Storage...</span>
-                  <span className="font-mono">{uploadProgress}%</span>
+              <div className="space-y-2 bg-white p-3.5 rounded-xl border-2 border-[#111111] shadow-brutal-xs">
+                <div className="flex items-center justify-between text-xs font-bold text-[#111111]">
+                  <span className="flex items-center gap-1.5">
+                    {uploadStage === 'compressing' && <span>⚡ Optimizing image for web...</span>}
+                    {uploadStage === 'uploading' && <span>☁️ Uploading to Cloud Storage...</span>}
+                    {uploadStage === 'saving' && <span>📝 Publishing to Wall of Fame...</span>}
+                    {uploadStage === 'done' && <span>🎉 Post submitted!</span>}
+                  </span>
+                  <span className="font-mono bg-[#FFD719] px-2 py-0.5 rounded-md border border-[#111111] text-[11px] font-black">
+                    {uploadProgress}%
+                  </span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-3 border border-[#111111] overflow-hidden">
+                <div className="w-full bg-gray-200 rounded-full h-3.5 border border-[#111111] overflow-hidden">
                   <div
-                    className="bg-[#39D62D] h-full transition-all duration-150 rounded-full"
-                    style={{ width: `${Math.max(5, uploadProgress)}%` }}
+                    className="bg-[#39D62D] h-full transition-all duration-200 rounded-full"
+                    style={{ width: `${Math.min(100, Math.max(5, uploadProgress))}%` }}
                   />
                 </div>
+                {uploadProgress < 90 && (
+                  <p className="text-[10px] text-gray-500 font-medium">
+                    Resumable stream active. Files are automatically compressed for high performance on campus networks.
+                  </p>
+                )}
               </div>
             )}
 

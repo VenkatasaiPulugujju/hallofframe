@@ -17,7 +17,7 @@ service cloud.firestore {
       return isSignedIn()
         && request.auth.token.email_verified == true
         && request.auth.token.email != null
-        && request.auth.token.email.matches('^[a-zA-Z0-9._%+-]+@cvv[.]ac[.]in$');
+        && request.auth.token.email.matches('^[a-zA-Z0-9._%+-]+@[cC][vV][vV][.][aA][cC][.][iI][nN]$');
     }
 
     function isOwner(uid) {

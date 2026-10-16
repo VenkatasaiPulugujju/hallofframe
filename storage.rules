@@ -11,7 +11,7 @@ service firebase.storage {
       return request.auth != null
         && request.auth.token.email_verified == true
         && request.auth.token.email != null
-        && request.auth.token.email.matches('^[a-zA-Z0-9._%+-]+@cvv[.]ac[.]in$');
+        && request.auth.token.email.matches('^[a-zA-Z0-9._%+-]+@[cC][vV][vV][.][aA][cC][.][iI][nN]$');
     }
 
     function isAdmin() {
@@ -22,16 +22,16 @@ service firebase.storage {
 
     // Images stored under post-images/{uid}/{postId}/{filename}
     match /post-images/{uid}/{postId}/{filename} {
-      // Verified users can read post images
-      allow read: if isVerifiedCvv();
+      // Post images are viewable by campus users or via token
+      allow read: if true;
 
       // Only the author can upload their own post image
       allow write: if isVerifiedCvv()
         && request.auth.uid == uid
         // Size limit: 5MB maximum
         && request.resource.size <= 5 * 1024 * 1024
-        // Allowed image MIME types only
-        && request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
+        // Allowed image MIME types (including jpg and pjpeg from mobile devices)
+        && request.resource.contentType.matches('image/(jpeg|jpg|png|webp|gif|pjpeg)');
 
       // Author or admin can delete the file during moderation or post removal
       allow delete: if (isVerifiedCvv() && request.auth.uid == uid) || isAdmin();

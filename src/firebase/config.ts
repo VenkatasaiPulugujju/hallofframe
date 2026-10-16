@@ -17,12 +17,23 @@ export function isCvvEmail(email: string | null | undefined): boolean {
   return pattern.test(normalized) && normalized.endsWith(`@${ALLOWED_EMAIL_DOMAIN}`);
 }
 
+// Clean storage bucket format (strip gs:// prefix and trailing slashes)
+const rawBucket = (
+  import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ||
+  rawConfig?.storageBucket ||
+  'collage-b3e32.firebasestorage.app'
+).trim();
+export const cleanStorageBucket = rawBucket.replace(/^gs:\/\//, '').replace(/\/+$/, '');
+export const fallbackStorageBucket = cleanStorageBucket.includes('firebasestorage.app')
+  ? cleanStorageBucket.replace('firebasestorage.app', 'appspot.com')
+  : cleanStorageBucket.replace('appspot.com', 'firebasestorage.app');
+
 // Client configuration prioritizing Vite environment variables with project fallbacks
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || rawConfig?.apiKey || "AIzaSyAdQnNiYpVwXvp1dgtbbKOrE0T5nbDDq10",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || rawConfig?.authDomain || "collage-b3e32.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || rawConfig?.projectId || "collage-b3e32",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || rawConfig?.storageBucket || "collage-b3e32.firebasestorage.app",
+  storageBucket: cleanStorageBucket,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || rawConfig?.messagingSenderId || "428748235882",
   appId: import.meta.env.VITE_FIREBASE_APP_ID || rawConfig?.appId || "1:428748235882:web:74e4c16c541dcdaa2a9613",
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || rawConfig?.measurementId || "G-YJ217FT7E7",
@@ -45,6 +56,11 @@ try {
   auth = getAuth(app);
   db = getFirestore(app);
   storage = getStorage(app);
+
+  // Configure sensible retry limits (25 seconds instead of Firebase's default 10 minutes!)
+  // This prevents the upload from hanging at 0% indefinitely when CORS or network issues occur.
+  storage.maxUploadRetryTime = 25000;
+  storage.maxOperationRetryTime = 25000;
 
   // Initialize analytics if supported in the browser environment
   isSupported().then((supported) => {
