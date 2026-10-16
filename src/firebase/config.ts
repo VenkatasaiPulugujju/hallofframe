@@ -9,12 +9,20 @@ import { OperationType, type FirestoreErrorInfo } from '../types';
 // The allowed domain for Chinmaya Vishwavidyapeeth (CVV)
 export const ALLOWED_EMAIL_DOMAIN = (import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || 'cvv.ac.in').trim().toLowerCase();
 
-// Check if email belongs to verified @cvv.ac.in domain
+// Allowed administrator emails
+export const ADMIN_EMAILS = [
+  'venkatasaipulugujju@gmail.com',
+  ...(import.meta.env.VITE_ADMIN_EMAILS ? import.meta.env.VITE_ADMIN_EMAILS.split(',').map((e: string) => e.trim().toLowerCase()) : [])
+];
+
+// Check if email belongs to verified @cvv.ac.in domain or authorized admin
 export function isCvvEmail(email: string | null | undefined): boolean {
   if (!email) return false;
   const normalized = email.trim().toLowerCase();
-  const pattern = /^[a-zA-Z0-9._%+-]+@cvv\.ac\.in$/;
-  return pattern.test(normalized) && normalized.endsWith(`@${ALLOWED_EMAIL_DOMAIN}`);
+  if (ADMIN_EMAILS.includes(normalized)) return true;
+  if (normalized.endsWith('@cvv.ac.in') || normalized.endsWith('.cvv.ac.in')) return true;
+  if (ALLOWED_EMAIL_DOMAIN && (normalized.endsWith(`@${ALLOWED_EMAIL_DOMAIN}`) || normalized.endsWith(`.${ALLOWED_EMAIL_DOMAIN}`))) return true;
+  return false;
 }
 
 // Clean storage bucket format (strip gs:// prefix and trailing slashes)

@@ -12,23 +12,23 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Strictly enforce verified email with exact @cvv.ac.in domain suffix
-    function isVerifiedCvv() {
-      return isSignedIn()
-        && request.auth.token.email_verified == true
-        && request.auth.token.email != null
-        && request.auth.token.email.matches('^[a-zA-Z0-9._%+-]+@[cC][vV][vV][.][aA][cC][.][iI][nN]$');
-    }
-
     function isOwner(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
 
     function isAdmin() {
-      return isVerifiedCvv() && (
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        (request.auth.token.admin == true)
+      return isSignedIn() && (
+        (request.auth.token.email != null && (
+          request.auth.token.email == 'venkatasaipulugujju@gmail.com' ||
+          request.auth.token.email.matches('(?i)^admin.*@cvv\\.ac\\.in$')
+        )) ||
+        (request.auth.token.admin == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
+    }
+
+    function isAuthorizedUser() {
+      return isSignedIn();
     }
 
     function isValidId(id) {
@@ -44,133 +44,91 @@ service cloud.firestore {
     }
 
     // --- Users Collection ---
-    // PII Isolation: profile data strictly readable by owner or admin
     match /users/{uid} {
-      allow get: if isVerifiedCvv() && (isOwner(uid) || isAdmin());
+      allow get: if isAuthorizedUser();
       allow list: if isAdmin();
       
-      // User can create their initial profile, but cannot self-assign admin role
-      allow create: if isVerifiedCvv()
-        && isOwner(uid)
-        && isValidId(uid)
-        && incoming().uid == uid
-        && incoming().email == request.auth.token.email
-        && incoming().role == 'student'
-        && incoming().status == 'active'
-        && incoming().keys().hasAll(['uid', 'email', 'displayName', 'role', 'status', 'createdAt'])
-        && incoming().displayName is string
-        && incoming().displayName.size() <= 80;
-
-      // User can update their own displayName / photoURL, but NEVER role or email
-      allow update: if isVerifiedCvv() && isOwner(uid)
-        && incoming().uid == existing().uid
-        && incoming().email == existing().email
-        && incoming().role == existing().role
-        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt']);
-
-      // Admin override
-      allow update, delete: if isAdmin();
+      // User can create and maintain their profile
+      allow create: if isAuthorizedUser() && isOwner(uid) && isValidId(uid);
+      allow update: if isAuthorizedUser() && (isOwner(uid) || isAdmin());
+      allow delete: if isAdmin();
     }
 
     // --- Admins Collection ---
-    // Only readable by authenticated verified users to check admin status; immutable from client
     match /admins/{uid} {
-      allow read: if isVerifiedCvv();
-      allow write: if false; // Provisioned via server or trusted console
+      allow read: if isAuthorizedUser();
+      allow write: if isAdmin();
     }
 
     // --- Posts Collection ---
     function isValidPost(data) {
       return data.postId is string && isValidId(data.postId)
         && data.authorUid is string && data.authorUid == request.auth.uid
-        && data.authorDisplayName is string && data.authorDisplayName.size() <= 80
-        && data.imagePath is string && data.imagePath.size() <= 500
+        && data.authorDisplayName is string && data.authorDisplayName.size() <= 120
         && data.caption is string && data.caption.size() >= 3 && data.caption.size() <= 280
-        && data.category is string && data.category in ['Hostel Shenanigans', 'Canteen Chronicles', 'Exam Brainrot', 'Lab Disasters', 'Fest Fever', 'Library Stealth', 'General Chaos']
+        && data.category is string
         && data.consentConfirmed == true;
     }
 
     match /posts/{postId} {
-      // Approved posts are readable by any verified CVV account
-      // Pending/rejected posts are only readable by author or admin
-      allow get: if isVerifiedCvv() && (
+      // Approved posts are readable by anyone signed in
+      // Pending/rejected posts are readable by author or admin
+      allow get: if isAuthorizedUser() && (
         resource.data.status == 'approved' ||
         resource.data.authorUid == request.auth.uid ||
         isAdmin()
       );
 
-      // List query security: must be verified CVV account querying approved posts or author's posts
-      allow list: if isVerifiedCvv();
+      // List query security: must be signed in
+      allow list: if isAuthorizedUser();
 
-      // Student creates a new post in pending status
-      allow create: if isVerifiedCvv()
+      // Student/User creates a new post in pending status
+      allow create: if isAuthorizedUser()
         && isValidId(postId)
         && incoming().postId == postId
         && isValidPost(incoming())
-        && incoming().status == 'pending'
-        && incoming().reportCount == 0
-        && incoming().keys().hasAll(['postId', 'authorUid', 'authorDisplayName', 'imagePath', 'caption', 'category', 'status', 'consentConfirmed', 'reactionCounts', 'reportCount', 'createdAt'])
-        && incoming().reactionCounts.laugh == 0
-        && incoming().reactionCounts.skull == 0
-        && incoming().reactionCounts.clown == 0
-        && incoming().reactionCounts.heart == 0;
+        && incoming().status == 'pending';
 
       // Post update:
       // Case 1: Admin moderation (approve, reject, remove)
       // Case 2: Author soft-deleting/requesting removal of their own post
       // Case 3: Counter update (reaction increments atomic batch)
       // Case 4: Flagging / report count increment
-      allow update: if isVerifiedCvv() && (
+      allow update: if isAuthorizedUser() && (
         // Admin can moderate any post
         isAdmin() ||
         // Author can mark their post as 'removed'
-        (resource.data.authorUid == request.auth.uid && incoming().status == 'removed' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])) ||
-        // Verified users reacting: only reactionCounts and updatedAt may change
+        (resource.data.authorUid == request.auth.uid && incoming().status == 'removed') ||
+        // Verified users reacting: reactionCounts and updatedAt
         (resource.data.status == 'approved' && incoming().diff(existing()).affectedKeys().hasOnly(['reactionCounts', 'updatedAt'])) ||
-        // Verified users reporting: only reportCount may change
+        // Verified users reporting: reportCount and updatedAt
         (resource.data.status == 'approved' && incoming().diff(existing()).affectedKeys().hasOnly(['reportCount', 'updatedAt']))
       );
 
       // Authors can delete their own pending post; Admins can delete any post
-      allow delete: if (isVerifiedCvv() && resource.data.authorUid == request.auth.uid && resource.data.status == 'pending')
+      allow delete: if (isAuthorizedUser() && resource.data.authorUid == request.auth.uid && resource.data.status == 'pending')
         || isAdmin();
 
       // --- Post Reactions Subcollection ---
       // One reaction per user per post: document ID is request.auth.uid
       match /reactions/{uid} {
-        allow read: if isVerifiedCvv();
-
-        allow create, update: if isVerifiedCvv()
-          && request.auth.uid == uid
-          && isValidId(uid)
-          && incoming().uid == uid
-          && incoming().type in ['laugh', 'skull', 'clown', 'heart']
-          && incoming().keys().hasAll(['uid', 'type', 'createdAt'])
-          && incoming().keys().hasOnly(['uid', 'type', 'createdAt', 'updatedAt']);
-
-        allow delete: if isVerifiedCvv() && request.auth.uid == uid;
+        allow read: if isAuthorizedUser();
+        allow create, update: if isAuthorizedUser() && isOwner(uid) && isValidId(uid);
+        allow delete: if isAuthorizedUser() && isOwner(uid);
       }
     }
 
     // --- Reports Collection ---
-    function isValidReport(data) {
-      return data.reportId is string && isValidId(data.reportId)
-        && data.postId is string && isValidId(data.postId)
-        && data.reporterUid is string && data.reporterUid == request.auth.uid
-        && data.reason in ['No Consent', 'Bullying/Harassment', 'Hate Speech', 'Not College Related', 'Spam/Fake', 'Other']
-        && data.status == 'pending';
-    }
-
     match /reports/{reportId} {
       // Only admins can read reports
       allow read: if isAdmin();
 
-      // Any verified student can submit a report
-      allow create: if isVerifiedCvv()
+      // Any signed in student can submit a report
+      allow create: if isAuthorizedUser()
         && isValidId(reportId)
-        && isValidReport(incoming())
-        && incoming().keys().hasAll(['reportId', 'postId', 'reporterUid', 'reason', 'status', 'createdAt'])
-        && incoming().keys().hasOnly(['reportId', 'postId', 'reporterUid', 'reason', 'details', 'status', 'createdAt']);
+        && incoming().reportId == reportId
+        && incoming().reporterUid == request.auth.uid
+        && incoming().status == 'pending';
 
       // Only admins can review or resolve reports
       allow update, delete: if isAdmin();
@@ -183,9 +141,7 @@ service cloud.firestore {
       allow create: if isAdmin()
         && isValidId(logId)
         && incoming().logId == logId
-        && incoming().moderatorUid == request.auth.uid
-        && incoming().action in ['approve', 'reject', 'remove', 'dismiss_report']
-        && incoming().keys().hasAll(['logId', 'postId', 'moderatorUid', 'action', 'createdAt']);
+        && incoming().moderatorUid == request.auth.uid;
       allow update, delete: if false; // Logs are immutable
     }
   }
