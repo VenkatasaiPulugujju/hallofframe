@@ -558,7 +558,9 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
         imageUrl: dataUrl,
         caption: caption.trim(),
         category,
-        status: 'pending', // Pending moderation
+        status: 'approved', // Published immediately
+        approvedAt: serverTimestamp(),
+        approvedBy: user.uid,
         consentConfirmed: true,
         reactionCounts: { laugh: 0, skull: 0, clown: 0, heart: 0 },
         reportCount: 0,
