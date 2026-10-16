@@ -1,0 +1,256 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Verified student or staff profile in Campus Wall of Fame",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Unique Google Firebase Auth UID"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^[a-zA-Z0-9._%+-]+@cvv\\.ac\\.in$",
+          "description": "Verified institutional email ending in @cvv.ac.in"
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "User's public display name"
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "User profile avatar URL"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["student", "moderator", "admin"],
+          "description": "Access control role"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "suspended"],
+          "description": "Account status"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp in ISO-8601"
+        }
+      },
+      "required": ["uid", "email", "displayName", "role", "status", "createdAt"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Campus meme, legendary moment, or photo submission",
+      "type": "object",
+      "properties": {
+        "postId": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Unique post identifier"
+        },
+        "authorUid": {
+          "type": "string",
+          "description": "Author UID"
+        },
+        "authorDisplayName": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "Author's public name"
+        },
+        "authorPhotoURL": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Author avatar URL"
+        },
+        "imagePath": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Authoritative Cloud Storage object path"
+        },
+        "imageUrl": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Public download/display URL"
+        },
+        "caption": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 280,
+          "description": "Humorous caption or context"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["Hostel Shenanigans", "Canteen Chronicles", "Exam Brainrot", "Lab Disasters", "Fest Fever", "Library Stealth", "General Chaos"],
+          "description": "Campus category"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected", "removed"],
+          "description": "Moderation status"
+        },
+        "consentConfirmed": {
+          "type": "boolean",
+          "description": "Confirmation of subject consent"
+        },
+        "reactionCounts": {
+          "type": "object",
+          "description": "Aggregate counters for reactions"
+        },
+        "reportCount": {
+          "type": "number",
+          "description": "Number of flagged user reports"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp"
+        },
+        "approvedAt": {
+          "type": "string",
+          "description": "Approval timestamp if approved"
+        },
+        "approvedBy": {
+          "type": "string",
+          "description": "Moderator UID who approved"
+        },
+        "rejectionReason": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Reason given if rejected"
+        }
+      },
+      "required": ["postId", "authorUid", "authorDisplayName", "imagePath", "caption", "category", "status", "consentConfirmed", "createdAt"]
+    },
+    "Reaction": {
+      "title": "Reaction",
+      "description": "User reaction to a post (one reaction per user per post)",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Reacting user UID"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["laugh", "skull", "clown"],
+          "description": "Emoji type: laugh, skull, or clown"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Reaction timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Update timestamp"
+        }
+      },
+      "required": ["uid", "type", "createdAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Content moderation report filed by a student",
+      "type": "object",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "description": "Unique report ID"
+        },
+        "postId": {
+          "type": "string",
+          "description": "Reported post ID"
+        },
+        "reporterUid": {
+          "type": "string",
+          "description": "Reporter UID"
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["No Consent", "Bullying/Harassment", "Hate Speech", "Not College Related", "Spam/Fake", "Other"],
+          "description": "Primary violation reason"
+        },
+        "details": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Optional details or explanation"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "reviewed", "dismissed"],
+          "description": "Review status"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Report timestamp"
+        },
+        "reviewedAt": {
+          "type": "string",
+          "description": "Review timestamp"
+        }
+      },
+      "required": ["reportId", "postId", "reporterUid", "reason", "status", "createdAt"]
+    },
+    "ModerationLog": {
+      "title": "ModerationLog",
+      "description": "Audit record of moderation action",
+      "type": "object",
+      "properties": {
+        "logId": {
+          "type": "string",
+          "description": "Unique log ID"
+        },
+        "postId": {
+          "type": "string",
+          "description": "Target post ID"
+        },
+        "moderatorUid": {
+          "type": "string",
+          "description": "Moderator UID"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["approve", "reject", "remove", "dismiss_report"],
+          "description": "Action performed"
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Optional notes or rejection rationale"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of action"
+        }
+      },
+      "required": ["logId", "postId", "moderatorUid", "action", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "Student profiles, strictly readable by owner or admin"
+    },
+    "/posts/{postId}": {
+      "schema": "Post",
+      "description": "Campus posts; approved items publicly readable by verified members"
+    },
+    "/posts/{postId}/reactions/{uid}": {
+      "schema": "Reaction",
+      "description": "User reaction to post; 1 per user with atomic counters"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Moderation reports, writable by authenticated users, readable by admins"
+    },
+    "/moderationLogs/{logId}": {
+      "schema": "ModerationLog",
+      "description": "Immutable moderation audit logs; admin only"
+    }
+  }
+}

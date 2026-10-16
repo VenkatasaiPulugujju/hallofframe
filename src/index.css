@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: 'Bricolage Grotesque', sans-serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+  --color-yellow: #FFD719;
+  --color-cream: #FFF9F0;
+  --color-pink: #FF4388;
+  --color-purple: #8055F5;
+  --color-green: #39D62D;
+  --color-noir: #111111;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background-color: #FFD719;
+  color: #111111;
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: 'Bricolage Grotesque', sans-serif;
+}
+
+/* Hard Neo-brutalist Shadows */
+.shadow-brutal-xs {
+  box-shadow: 2px 2px 0px #111111;
+}
+
+.shadow-brutal-sm {
+  box-shadow: 3px 3px 0px #111111;
+}
+
+.shadow-brutal {
+  box-shadow: 5px 5px 0px #111111;
+}
+
+.shadow-brutal-lg {
+  box-shadow: 8px 8px 0px #111111;
+}
+
+.shadow-brutal-xl {
+  box-shadow: 12px 12px 0px #111111;
+}
+
+/* Tactile Mechanical Press effect */
+.btn-press {
+  transition: transform 0.08s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.08s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.btn-press:hover {
+  transform: translate(-1px, -1px);
+}
+
+.btn-press:active {
+  transform: translate(3px, 3px) !important;
+  box-shadow: 1px 1px 0px #111111 !important;
+}
+
+.btn-press-sm:active {
+  transform: translate(2px, 2px) !important;
+  box-shadow: 0px 0px 0px #111111 !important;
+}
+
+/* Manila Folder Tab Cut */
+.folder-tab-badge {
+  position: relative;
+}
+.folder-tab-badge::before {
+  content: '';
+  position: absolute;
+  top: -12px;
+  left: 0;
+  height: 12px;
+  width: 90px;
+  background-color: inherit;
+  border-top: 3px solid #111111;
+  border-left: 3px solid #111111;
+  border-right: 3px solid #111111;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+/* Halftone / Dot pattern background */
+.bg-dots-pattern {
+  background-image: radial-gradient(#111111 1.2px, transparent 1.2px);
+  background-size: 18px 18px;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #FFF9F0;
+  border: 2px solid #111111;
+}
+::-webkit-scrollbar-thumb {
+  background: #FFD719;
+  border: 2px solid #111111;
+  border-radius: 0px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #FF4388;
+}

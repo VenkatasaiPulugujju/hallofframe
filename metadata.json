@@ -1,0 +1,6 @@
+{
+  "name": "Campus Wall of Fame",
+  "description": "College-exclusive entertainment platform for verified @cvv.ac.in students to share funny campus moments with consent, react, and discover trending legends.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
